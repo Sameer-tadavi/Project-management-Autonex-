@@ -18,7 +18,12 @@ app = FastAPI(title="Autonex Resource Planning Tool V2")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://project-management-autonex-et9x.vercel.app",
+        "https://project-management-autonex.vercel.app",
+    ],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Allow all headers
