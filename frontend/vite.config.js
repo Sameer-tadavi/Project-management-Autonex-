@@ -13,14 +13,8 @@ export default defineConfig({
     }
   },
   build: {
-    // Production optimizations
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,  // Remove console.log in production
-        drop_debugger: true
-      }
-    },
+    // Production optimizations - using esbuild (built-in, no extra deps)
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         // Code splitting for better caching
