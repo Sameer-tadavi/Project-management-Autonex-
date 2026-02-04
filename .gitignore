@@ -1,0 +1,49 @@
+﻿# Root .gitignore
+
+# Frontend (Node/Vite/Tailwind)
+/frontend/node_modules/
+/frontend/dist/
+/frontend/build/
+/frontend/.vite/
+/frontend/.cache/
+/frontend/.turbo/
+
+# Frontend local envs and logs
+/frontend/.env
+/frontend/.env.*
+
+# Backend (Python)
+/backend/venv/
+/backend/.venv/
+/backend/env/
+
+# Env files
+*.env
+
+# Python caches and artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.mypy_cache/
+.pytest_cache/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Databases
+*.sqlite3
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+node_modules/
+coverage/
