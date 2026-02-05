@@ -26,14 +26,14 @@ def get_pm_name(db: Session, pm_id: int) -> str | None:
     return employee.name if employee else None
 
 
-@router.get("/", response_model=List[ParentProjectResponse])
+@router.get("", response_model=List[ParentProjectResponse])
 def get_all_parent_projects(db: Session = Depends(get_db)):
     """Get all parent projects with sub-project counts (optimized)."""
     parent_projects = db.query(ParentProject).order_by(ParentProject.created_at.desc()).all()
     
     if not parent_projects:
         return []
-    
+
     # Batch load sub-project counts in a single query
     sub_counts = db.query(
         Project.main_project_id, 
@@ -70,7 +70,7 @@ def get_all_parent_projects(db: Session = Depends(get_db)):
     return result
 
 
-@router.post("/", response_model=ParentProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ParentProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_parent_project(
     parent_project: ParentProjectCreate,
     db: Session = Depends(get_db)
