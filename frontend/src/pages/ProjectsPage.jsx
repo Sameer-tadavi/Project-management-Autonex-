@@ -641,7 +641,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { subProjectApi, projectApi, employeeApi, skillApi, allocationApi } from '../services/api';
 import { Plus, Edit, Trash2, X, UserCheck, Users, ChevronDown, ArrowRight, Copy } from 'lucide-react';
 import { format } from 'date-fns';
@@ -1027,6 +1027,16 @@ const ProjectsPage = () => {
     return badges[priority?.toLowerCase()] || 'badge-blue';
   };
 
+  const [searchParams] = useSearchParams();
+  const filterMainProjectId = searchParams.get('project');
+
+  // Filter projects based on the URL parameter
+  const filteredProjects = filterMainProjectId
+    ? projects.filter(p => p.main_project_id === parseInt(filterMainProjectId))
+    : projects;
+
+  const currentMainProject = mainProjects.find(p => p.id === parseInt(filterMainProjectId));
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1040,8 +1050,14 @@ const ProjectsPage = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Sub-Projects</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage tasks and resource allocation per project</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {currentMainProject ? `Sub-Projects for ${currentMainProject.name}` : 'All Sub-Projects'}
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            {currentMainProject
+              ? `Manage tasks and resource allocation for ${currentMainProject.name}`
+              : 'Manage tasks and resource allocation across all projects'}
+          </p>
         </div>
         <button
           onClick={() => {
@@ -1080,15 +1096,17 @@ const ProjectsPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {projects.length === 0 ? (
+              {filteredProjects.length === 0 ? (
                 <tr>
                   <td colSpan="15" className="text-center py-16 text-slate-400">
-                    <div className="text-lg font-medium">No sub-projects yet</div>
+                    <div className="text-lg font-medium">
+                      {filterMainProjectId ? 'No sub-projects for this project' : 'No sub-projects yet'}
+                    </div>
                     <p className="text-sm mt-1">Create your first sub-project to get started</p>
                   </td>
                 </tr>
               ) : (
-                projects.map((project) => {
+                filteredProjects.map((project) => {
                   const matchingTotal = getMatchingEmployees(project).length;
                   const allocatedManpower = getAllocatedManpower(project);
                   const remainingManpower = matchingTotal - allocatedManpower;
@@ -1348,7 +1366,7 @@ const ProjectsPage = () => {
                     <select
                       name="main_project_id"
                       required
-                      defaultValue={(editingProject || copyingProject)?.main_project_id || ''}
+                      defaultValue={(editingProject || copyingProject)?.main_project_id || filterMainProjectId || ''}
                       className="input"
                     >
                       <option value="">Select a Project</option>
