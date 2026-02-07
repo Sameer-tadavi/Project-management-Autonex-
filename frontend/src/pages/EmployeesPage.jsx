@@ -441,8 +441,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { employeeApi, skillApi } from '../services/api';
-import { Plus, Edit, Trash2, X, User, ChevronDown } from 'lucide-react';
+import { employeeApi, skillApi, allocationApi } from '../services/api';
+import { Plus, Edit, Trash2, X, User, ChevronDown, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 // Custom Multi-Select Dropdown Component
 const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryClient }) => {
@@ -490,7 +491,7 @@ const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryC
         queryClient.invalidateQueries(['skills']);
       } catch (error) {
         console.error('Failed to create skill:', error);
-        // Optionally show error to user
+        toast.error('Failed to create custom skill');
       }
     }
   };
@@ -586,10 +587,95 @@ const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryC
   );
 };
 
+
+const DesignationSelect = ({ name, defaultValue, designations = [] }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selected, setSelected] = useState(defaultValue);
+  const [options, setOptions] = useState(designations);
+  const [custom, setCustom] = useState('');
+  const ref = useRef(null);
+
+  useEffect(() => {
+    setOptions(prev => Array.from(new Set([...prev, ...designations])).sort());
+  }, [designations]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (val) => {
+    setSelected(val);
+    setIsOpen(false);
+  };
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Stop form submission
+    const val = custom.trim();
+    if (val && !options.includes(val)) {
+      setOptions(prev => [...prev, val].sort());
+      handleSelect(val);
+      setCustom('');
+    }
+  };
+
+  const handleDeleteOption = (e, opt) => {
+    e.stopPropagation();
+    setOptions(prev => prev.filter(o => o !== opt));
+    if (selected === opt) setSelected('');
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <input type="hidden" name={name} value={selected} />
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer flex items-center justify-between min-h-[42px]"
+      >
+        <span className={selected ? 'text-slate-900' : 'text-slate-400'}>{selected || 'Select designation...'}</span>
+        <ChevronDown className="w-4 h-4 text-slate-400" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
+          <div className="overflow-y-auto flex-1">
+            {options.map(opt => (
+              <div key={opt} onClick={() => handleSelect(opt)} className="px-4 py-2 hover:bg-slate-50 cursor-pointer flex justify-between group">
+                <span>{opt}</span>
+                <button onClick={(e) => handleDeleteOption(e, opt)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 p-1">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="border-t p-2 bg-slate-50 flex gap-2">
+            <input
+              className="flex-1 px-2 py-1 text-sm border rounded"
+              placeholder="New designation..."
+              value={custom}
+              onChange={e => setCustom(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(e); } }}
+            />
+            <button type="button" onClick={handleAdd} className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">Add</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EmployeesPage = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [skillFilter, setSkillFilter] = useState('');
+
 
   // Fetch employees
   const { data: employees = [], isLoading } = useQuery({
@@ -606,13 +692,23 @@ const EmployeesPage = () => {
   // Extract skill names from the API response
   const predefinedSkills = skillsData.map(skill => skill.name);
 
+  // Derive unique designations for list
+  const uniqueDesignations = Array.from(new Set([
+    'Program Manager', 'Annotator', 'Developer', 'QA', 'Reviewer',
+    ...employees.map(e => e.designation)
+  ].filter(Boolean))).sort();
+
   const createMutation = useMutation({
     mutationFn: employeeApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries(['employees']);
       queryClient.invalidateQueries(['skills']); // Refresh skills in case new ones were added
       setIsModalOpen(false);
+      toast.success('Employee created successfully');
     },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to create employee');
+    }
   });
 
   const updateMutation = useMutation({
@@ -622,14 +718,22 @@ const EmployeesPage = () => {
       queryClient.invalidateQueries(['skills']); // Refresh skills in case new ones were added
       setIsModalOpen(false);
       setEditingEmployee(null);
+      toast.success('Employee updated successfully');
     },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to update employee');
+    }
   });
 
   const deleteMutation = useMutation({
     mutationFn: employeeApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries(['employees']);
+      toast.success('Employee deleted successfully');
     },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to delete employee');
+    }
   });
 
   const handleSubmit = (e) => {
@@ -643,7 +747,7 @@ const EmployeesPage = () => {
       working_hours_per_day: parseFloat(formData.get('working_hours_per_day')),
       weekly_availability: parseFloat(formData.get('weekly_availability')),
       skills: formData.get('skills').split(',').map(s => s.trim()).filter(Boolean),
-      productivity_baseline: parseFloat(formData.get('productivity_baseline')),
+      // productivity_baseline removed
       status: formData.get('status') || 'active',
     };
 
@@ -688,16 +792,41 @@ const EmployeesPage = () => {
           <h1 className="text-2xl font-bold text-slate-900">Employees</h1>
           <p className="text-slate-500 text-sm mt-1">Manage team members and their availability</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingEmployee(null);
-            setIsModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Employee
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Search Bar */}
+          <div className="flex gap-2">
+
+            <select
+              value={skillFilter}
+              onChange={(e) => setSkillFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-100 outline-none bg-white min-w-[140px]"
+            >
+              <option value="">All Skills</option>
+              {predefinedSkills.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search employees..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-100 outline-none w-64"
+              />
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setEditingEmployee(null);
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Modern Card Container */}
@@ -716,110 +845,137 @@ const EmployeesPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {employees.length === 0 ? (
+              {employees
+                .filter(employee => {
+                  const matchesSearch = employee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    employee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (employee.designation && employee.designation.toLowerCase().includes(searchQuery.toLowerCase()));
+                  const matchesSkill = !skillFilter || (employee.skills && employee.skills.includes(skillFilter));
+                  return matchesSearch && matchesSkill;
+                })
+                .length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-5 py-16 text-center">
                     <div className="text-slate-400">
-                      <p className="text-lg font-medium mb-1">No employees yet</p>
-                      <p className="text-sm">Add your first team member to get started</p>
+                      <p className="text-lg font-medium mb-1">No employees found</p>
+                      <p className="text-sm">Try adjusting your search query</p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                employees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-slate-50 transition-colors">
-                    {/* Employee Info */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                          <User className="w-5 h-5 text-slate-500" />
+                employees
+                  .filter(employee => {
+                    const matchesSearch = employee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      employee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      (employee.designation && employee.designation.toLowerCase().includes(searchQuery.toLowerCase()));
+                    const matchesSkill = !skillFilter || (employee.skills && employee.skills.includes(skillFilter));
+                    return matchesSearch && matchesSkill;
+                  })
+                  .map((employee) => (
+                    <tr key={employee.id} className="hover:bg-slate-50 transition-colors">
+                      {/* Employee Info */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-slate-500" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-slate-800">{employee.name}</div>
+                            <div className="text-sm text-slate-400">{employee.email}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-semibold text-slate-800">{employee.name}</div>
-                          <div className="text-sm text-slate-400">{employee.email}</div>
+                      </td>
+
+                      {/* Designation */}
+                      <td className="px-5 py-4">
+                        <span className="text-sm text-slate-700">{employee.designation || 'Annotator'}</span>
+                      </td>
+
+                      {/* Type */}
+                      <td className="px-5 py-4 text-center">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${employee.employee_type === 'Full-time' ? 'bg-emerald-50 text-emerald-700' :
+                          employee.employee_type === 'Part-time' ? 'bg-blue-50 text-blue-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                          {employee.employee_type}
+                        </span>
+                      </td>
+
+                      {/* Hours */}
+                      <td className="px-5 py-4 text-center">
+                        <div className="font-semibold text-slate-800">{employee.working_hours_per_day}h</div>
+                      </td>
+
+                      {/* Skills */}
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {employee.skills && employee.skills.length > 0 ? (
+                            <>
+                              {employee.skills.slice(0, 3).map((skill, idx) => (
+                                <span key={idx} className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                  {skill}
+                                </span>
+                              ))}
+                              {employee.skills.length > 3 && (
+                                <span className="text-xs text-slate-400">+{employee.skills.length - 3}</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Designation */}
-                    <td className="px-5 py-4">
-                      <span className="text-sm text-slate-700">{employee.designation || 'Annotator'}</span>
-                    </td>
-
-                    {/* Type */}
-                    <td className="px-5 py-4 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${employee.employee_type === 'Full-time' ? 'bg-emerald-50 text-emerald-700' :
-                        employee.employee_type === 'Part-time' ? 'bg-blue-50 text-blue-700' :
-                          'bg-slate-100 text-slate-600'
-                        }`}>
-                        {employee.employee_type}
-                      </span>
-                    </td>
-
-                    {/* Hours */}
-                    <td className="px-5 py-4 text-center">
-                      <div className="font-semibold text-slate-800">{employee.working_hours_per_day}h</div>
-                    </td>
-
-                    {/* Skills */}
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {employee.skills && employee.skills.length > 0 ? (
-                          <>
-                            {employee.skills.slice(0, 3).map((skill, idx) => (
-                              <span key={idx} className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                {skill}
-                              </span>
-                            ))}
-                            {employee.skills.length > 3 && (
-                              <span className="text-xs text-slate-400">+{employee.skills.length - 3}</span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${employee.status === 'active' ? 'bg-emerald-500' :
+                      {/* Status */}
+                      <td className="px-5 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${employee.status === 'active' ? 'bg-emerald-500' :
                             employee.status === 'on-leave' ? 'bg-amber-500' :
                               'bg-slate-400'
-                          }`}></span>
-                        <span className="text-sm text-slate-600 capitalize">{employee.status}</span>
-                      </div>
-                    </td>
+                            }`}></span>
+                          <span className="text-sm text-slate-600 capitalize">{employee.status}</span>
+                        </div>
+                      </td>
 
-                    {/* Actions */}
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingEmployee(employee);
-                            setIsModalOpen(true);
-                          }}
-                          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Delete ${employee.name}?`)) {
-                              deleteMutation.mutate(employee.id);
-                            }
-                          }}
-                          className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      {/* Actions */}
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingEmployee(employee);
+                              setIsModalOpen(true);
+                            }}
+                            className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const allocs = await allocationApi.getByEmployee(employee.id);
+                                if (allocs && allocs.length > 0) {
+                                  alert(`Cannot delete ${employee.name} as they are allocated to projects.`);
+                                  return;
+                                }
+                                if (window.confirm(`Delete ${employee.name}?`)) {
+                                  deleteMutation.mutate(employee.id);
+                                }
+                              } catch (err) {
+                                console.error("Failed to check allocations", err);
+                                // Fallback to normal delete if check fails? Or block?
+                                // alert("Error checking allocations.");
+                              }
+                            }}
+                            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
@@ -886,18 +1042,11 @@ const EmployeesPage = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Designation <span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <DesignationSelect
                         name="designation"
-                        required
                         defaultValue={editingEmployee?.designation || 'Annotator'}
-                        className="input"
-                      >
-                        <option value="Program Manager">Program Manager</option>
-                        <option value="Annotator">Annotator</option>
-                        <option value="Developer">Developer</option>
-                        <option value="QA">QA</option>
-                        <option value="Reviewer">Reviewer</option>
-                      </select>
+                        designations={uniqueDesignations}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -950,22 +1099,6 @@ const EmployeesPage = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Productivity <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        name="productivity_baseline"
-                        required
-                        step="0.1"
-                        min="0.1"
-                        max="2.0"
-                        defaultValue={editingEmployee?.productivity_baseline || 1.0}
-                        className="input"
-                      />
-                      <p className="mt-1 text-xs text-gray-500">Range: 0.1 - 2.0</p>
-                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Status <span className="text-red-500">*</span>

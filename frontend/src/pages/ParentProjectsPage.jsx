@@ -5,6 +5,7 @@ import { parentProjectApi, employeeApi } from '../services/api';
 import { Plus, X, Edit, Trash2, FolderTree, Users, Calendar, Clock, ChevronRight, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const ParentProjectsPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,7 +30,9 @@ const ParentProjectsPage = () => {
         onSuccess: () => {
             queryClient.invalidateQueries(['parent-projects']);
             setIsModalOpen(false);
+            toast.success('Project created successfully');
         },
+        onError: (err) => toast.error(err.message || 'Failed to create project'),
     });
 
     const updateMutation = useMutation({
@@ -38,12 +41,18 @@ const ParentProjectsPage = () => {
             queryClient.invalidateQueries(['parent-projects']);
             setIsModalOpen(false);
             setEditingProject(null);
+            toast.success('Project updated successfully');
         },
+        onError: (err) => toast.error(err.message || 'Failed to update project'),
     });
 
     const deleteMutation = useMutation({
         mutationFn: parentProjectApi.delete,
-        onSuccess: () => queryClient.invalidateQueries(['parent-projects']),
+        onSuccess: () => {
+            queryClient.invalidateQueries(['parent-projects']);
+            toast.success('Project deleted successfully');
+        },
+        onError: (err) => toast.error(err.message || 'Failed to delete project'),
     });
 
     const handleSubmit = (e) => {
@@ -270,6 +279,7 @@ const ParentProjectsPage = () => {
                                 <input
                                     type="text"
                                     name="client"
+                                    required
                                     defaultValue={editingProject?.client || ''}
                                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                     placeholder="Client organization name"
@@ -282,6 +292,7 @@ const ParentProjectsPage = () => {
                                 </label>
                                 <select
                                     name="program_manager_id"
+                                    required
                                     defaultValue={editingProject?.program_manager_id || ''}
                                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                 >
@@ -327,6 +338,7 @@ const ParentProjectsPage = () => {
                                     <input
                                         type="number"
                                         name="tentative_duration_months"
+                                        required
                                         min="1"
                                         defaultValue={editingProject?.tentative_duration_months || ''}
                                         className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"

@@ -1,15 +1,35 @@
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { LogOut, User, Menu, X, Bell, Search, ChevronDown } from 'lucide-react';
+import { LogOut, User, Menu, X, Search, ChevronDown } from 'lucide-react';
 import { navigation } from '../config/navigation';
 import api from '../services/api';
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { subProjectApi, employeeApi } from '../services/api';
 
 const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showResults, setShowResults] = useState(false);
+
+  // Fetch data for global search (background)
+  const { data: searchEmployees = [] } = useQuery({
+    queryKey: ['employees'],
+    queryFn: employeeApi.getAll,
+    staleTime: 5 * 60 * 1000
+  });
+  const { data: searchProjects = [] } = useQuery({
+    queryKey: ['sub-projects'],
+    queryFn: subProjectApi.getAll,
+    staleTime: 5 * 60 * 1000
+  });
+
+  const filteredResults = {
+    employees: (searchEmployees || []).filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 3),
+    projects: (searchProjects || []).filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 3)
+  };
 
   // Get user info from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -117,20 +137,53 @@ const AdminLayout = () => {
 
           <div className="flex items-center gap-6">
             {/* Search Bar */}
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-100/50 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-100 transition-all w-64">
-              <Search className="w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search resources..."
-                className="bg-transparent border-none text-sm outline-none w-full placeholder:text-slate-400"
-              />
-            </div>
+            <div className="relative">
+              <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-100/50 rounded-full border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-100 transition-all w-64">
+                <Search className="w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search resources..."
+                  className="bg-transparent border-none text-sm outline-none w-full placeholder:text-slate-400"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setShowResults(true); }}
+                  onFocus={() => setShowResults(true)}
+                  onBlur={() => setTimeout(() => setShowResults(false), 200)}
+                />
+              </div>
 
-            {/* Notifications */}
-            <button className="relative p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-            </button>
+              {/* Search Results Dropdown */}
+              {showResults && searchQuery.length > 0 && (
+                <div className="absolute top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 max-h-96 overflow-auto">
+                  {/* Projects */}
+                  {filteredResults.projects.length > 0 && (
+                    <div>
+                      <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase">Projects</div>
+                      {filteredResults.projects.map(p => (
+                        <button key={p.id} onClick={() => navigate('/admin/sub-projects')} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 truncate">
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Employees */}
+                  {filteredResults.employees.length > 0 && (
+                    <div>
+                      <div className="px-4 py-1 text-xs font-semibold text-slate-400 uppercase mt-2">Employees</div>
+                      {filteredResults.employees.map(e => (
+                        <button key={e.id} onClick={() => navigate('/admin/employees')} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 truncate">
+                          {e.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {filteredResults.projects.length === 0 && filteredResults.employees.length === 0 && (
+                    <div className="px-4 py-2 text-sm text-slate-400 text-center">No matches found</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

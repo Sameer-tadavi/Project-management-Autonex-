@@ -470,6 +470,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { allocationApi, subProjectApi, employeeApi, leaveApi } from '../services/api';
 import { Plus, Edit, Trash2, X, UserPlus, UserMinus, CheckSquare, AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 // Role tag constants for time division
 const ROLE_TAGS = ['Annotation', 'Review', 'QC'];
@@ -513,20 +514,21 @@ const AllocationsPage = () => {
 
   const isDataLoading = projectsLoading || employeesLoading || allocationsLoading;
 
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
+
+
 
   const createMutation = useMutation({
     mutationFn: allocationApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries(['allocations']);
       queryClient.invalidateQueries(['sub-projects']);
-      setSuccessMessage('Allocation created successfully!');
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsModalOpen(false);
+      // setSuccessMessage removed
+      toast.success('Allocation created successfully!');
     },
     onError: (err) => {
       const message = err.response?.data?.detail?.message || err.response?.data?.detail || err.message || 'Failed to create allocation';
-      setError(message);
+      toast.error(message);
     },
   });
 
@@ -535,12 +537,11 @@ const AllocationsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['allocations']);
       queryClient.invalidateQueries(['sub-projects']);
-      setSuccessMessage('Allocation removed successfully!');
-      setTimeout(() => setSuccessMessage(null), 3000);
+      toast.success('Allocation removed successfully!');
     },
     onError: (err) => {
       const message = err.response?.data?.detail || err.message || 'Failed to delete allocation';
-      setError(message);
+      toast.error(message);
     },
   });
 
@@ -761,25 +762,7 @@ const AllocationsPage = () => {
         </button>
       </div>
 
-      {/* Messages */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
-            <span>{error}</span>
-          </div>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
-      {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg flex items-center gap-2">
-          <CheckSquare className="w-5 h-5" />
-          <span>{successMessage}</span>
-        </div>
-      )}
 
       {/* Modern Card Container */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
@@ -855,12 +838,33 @@ const AllocationsPage = () => {
                         >
                           <UserPlus className="w-4 h-4" />
                         </button>
-                        <span className={`text-sm font-medium px-2 py-0.5 rounded ${projectAllocs.length >= requiredManpower
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-amber-50 text-amber-700'
-                          }`}>
-                          {projectAllocs.length}/{requiredManpower}
-                        </span>
+                        {(() => {
+                          const activeCount = projectAllocs.filter(a => {
+                            const empLeaves = leaves.filter(l => l.employee_id === a.employee_id);
+                            // Check active overlap
+                            const hasOverlap = empLeaves.some(l =>
+                              new Date(l.start_date) <= new Date(project.end_date) &&
+                              new Date(l.end_date) >= new Date(project.start_date)
+                            );
+                            return !hasOverlap;
+                          }).length;
+
+                          return (
+                            <div className="flex flex-col items-end">
+                              <span className={`text-sm font-medium px-2 py-0.5 rounded ${activeCount >= requiredManpower
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                {activeCount}/{requiredManpower}
+                              </span>
+                              {activeCount < projectAllocs.length && (
+                                <span className="text-xs text-red-500 font-medium scale-90 origin-right">
+                                  ({projectAllocs.length} assigned) !
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="px-5 py-4 text-right">
@@ -1004,21 +1008,34 @@ const AllocationsPage = () => {
                     </div>
 
                     {/* Warning for employees on leave */}
-                    {employeesOnLeave.length > 0 && (
-                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <div className="flex items-center gap-2 text-amber-700 font-medium mb-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          <span>{employeesOnLeave.length} employee(s) on leave during project dates:</span>
+                    {(() => {
+                      const skilledEmployeesOnLeave = employeesOnLeave.filter(emp => {
+                        const requiredSkills = selectedProject.required_expertise || [];
+                        if (requiredSkills.length === 0) return true;
+                        const empSkills = emp.skills || [];
+                        return requiredSkills.some(skill =>
+                          empSkills.some(empSkill => empSkill.toLowerCase().includes(skill.toLowerCase()))
+                        );
+                      });
+
+                      if (skilledEmployeesOnLeave.length === 0) return null;
+
+                      return (
+                        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center gap-2 text-amber-700 font-medium mb-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            <span>{skilledEmployeesOnLeave.length} employee(s) on leave during project dates:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {skilledEmployeesOnLeave.map(emp => (
+                              <span key={emp.id} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
+                                {emp.name}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {employeesOnLeave.map(emp => (
-                            <span key={emp.id} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
-                              {emp.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Employee List */}
                     {(() => {

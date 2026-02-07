@@ -2,7 +2,6 @@ import { Users, FolderKanban, Calendar, LayoutDashboard, UserCog, Layers } from 
 
 export const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Projects', href: '/admin/projects', icon: Layers },
     { name: 'Sub-Projects', href: '/admin/sub-projects', icon: FolderKanban },
     { name: 'Employees', href: '/admin/employees', icon: Users },
     { name: 'Allocations', href: '/admin/allocations', icon: UserCog },

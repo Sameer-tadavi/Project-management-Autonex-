@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leaveApi, employeeApi } from '../services/api';
 import { Plus, X, Calendar, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const LeavesPage = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [error, setError] = useState('');
+
 
   const { data: leaves = [], isLoading } = useQuery({
     queryKey: ['leaves'],
@@ -24,12 +25,12 @@ const LeavesPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['leaves']);
       setIsModalOpen(false);
-      setError('');
+      toast.success('Leave record created successfully');
     },
     onError: (err) => {
       console.error('Create leave error:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to create leave';
-      setError(errorMessage);
+      toast.error(errorMessage);
     }
   });
 
@@ -37,12 +38,17 @@ const LeavesPage = () => {
     mutationFn: leaveApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries(['leaves']);
+      toast.success('Leave record deleted successfully');
     },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to delete leave');
+    }
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setError('');
+
+
 
     const formData = new FormData(e.target);
     const employeeId = formData.get('employee_id');
@@ -51,7 +57,7 @@ const LeavesPage = () => {
     const leaveType = formData.get('leave_type');
 
     if (!employeeId || employeeId === '') {
-      setError('Please select an employee');
+      toast.error('Please select an employee');
       return;
     }
 
@@ -101,7 +107,6 @@ const LeavesPage = () => {
         </div>
         <button
           onClick={() => {
-            setError('');
             setIsModalOpen(true);
           }}
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors shadow-sm"
@@ -148,7 +153,8 @@ const LeavesPage = () => {
                 leaves.map((leave) => {
                   const start = new Date(leave.start_date);
                   const end = new Date(leave.end_date);
-                  const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                  // Calculate duration as difference in days (Feb 6 to Feb 7 = 1 day)
+                  const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) || 1;
 
                   return (
                     <tr key={leave.leave_id} className="hover:bg-slate-50 transition-colors">
@@ -225,11 +231,7 @@ const LeavesPage = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6">
-              {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
-              )}
+
 
               {activeEmployees.length === 0 && (
                 <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
@@ -308,7 +310,6 @@ const LeavesPage = () => {
                   type="button"
                   onClick={() => {
                     setIsModalOpen(false);
-                    setError('');
                   }}
                   className="btn btn-secondary"
                 >

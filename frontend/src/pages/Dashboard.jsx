@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { subProjectApi, employeeApi, allocationApi, leaveApi, skillsApi } from '../services/api';
-import { FolderKanban, Calendar, Users, AlertTriangle, ArrowUpRight, Activity, Zap, Target, TrendingUp, MoreVertical, Plus, ChevronRight } from 'lucide-react';
+import { FolderKanban, Calendar, Users, AlertTriangle, ArrowUpRight, Activity, Zap, Target, TrendingUp, Plus, ChevronRight } from 'lucide-react';
 import { format, isWithinInterval, parseISO } from 'date-fns';
 import { getWorkingDays } from '../utils/dateCalculations';
 
@@ -135,26 +135,52 @@ const Dashboard = () => {
   // Project analysis
   const getProjectAnalysis = useMemo(() => (project) => {
     if (!project.end_date) return { status: 'unknown', recommendation: null };
-    const requiredHours = project.total_tasks * project.estimated_time_per_task;
+
+    // Use remaining tasks if available, otherwise total tasks
+    const taskCount = project.remaining_tasks !== undefined ? project.remaining_tasks : project.total_tasks;
+    const requiredHours = taskCount * project.estimated_time_per_task;
     const workingDaysRemaining = getWorkingDays(new Date(), project.end_date);
+
     if (workingDaysRemaining <= 0) return { status: 'overdue', recommendation: { message: 'Past deadline' } };
 
-    const allocatedCount = allocations.filter(a => a.sub_project_id === project.id).length;
-    const activeEmps = employees.filter(e => e.status === 'active');
-    const avgHours = activeEmps.length > 0 ? activeEmps.reduce((s, e) => s + (e.working_hours_per_day || 8), 0) / activeEmps.length : 8;
-    const totalCap = allocatedCount * avgHours * workingDaysRemaining;
+    // Get all allocations for this project
+    const projectAllocations = allocations.filter(a => a.sub_project_id === project.id);
+    const allocatedCount = projectAllocations.length;
 
-    if (allocatedCount === 0) return { status: 'no_staff', recommendation: { message: 'Needs staffing' } };
+    // Count employees on leave during project dates (active count excludes those on leave)
+    const activeAllocatedCount = projectAllocations.filter(a => {
+      const empLeaves = leaves.filter(l => l.employee_id === a.employee_id);
+      const hasOverlap = empLeaves.some(l =>
+        new Date(l.start_date) <= new Date(project.end_date) &&
+        new Date(l.end_date) >= new Date(project.start_date)
+      );
+      return !hasOverlap;
+    }).length;
+
+    // Fix: If explicitly allocated enough people (active, not on leave), it is balanced
+    if (project.required_manpower && activeAllocatedCount >= project.required_manpower) {
+      return { status: 'balanced', recommendation: null };
+    }
+
+    const standardDayHours = 8; // Use standard 8h day instead of average of all employees
+    const totalCap = activeAllocatedCount * standardDayHours * workingDaysRemaining;
+
+    if (activeAllocatedCount === 0) return { status: 'no_staff', recommendation: { message: 'Needs staffing' } };
 
     const loadRatio = requiredHours / totalCap;
     if (loadRatio > 1.1) {
-      const deficit = requiredHours - totalCap;
-      const extraNeeded = Math.ceil(deficit / (workingDaysRemaining * avgHours));
+      // Calculate deficit based on required manpower if available, otherwise by hours
+      if (project.required_manpower && activeAllocatedCount < project.required_manpower) {
+        const extraNeeded = project.required_manpower - activeAllocatedCount;
+        return { status: 'overburden', recommendation: { message: `+${extraNeeded} staff needed` } };
+      }
+      const deficitHours = requiredHours - totalCap;
+      const extraNeeded = Math.ceil(deficitHours / (workingDaysRemaining * standardDayHours));
       return { status: 'overburden', recommendation: { message: `+${extraNeeded} staff needed` } };
     }
-    if (loadRatio < 0.5 && allocatedCount > 1) return { status: 'underutilized', recommendation: { message: 'Surplus capacity' } };
+    if (loadRatio < 0.5 && activeAllocatedCount > 1) return { status: 'underutilized', recommendation: { message: 'Surplus capacity' } };
     return { status: 'balanced', recommendation: null };
-  }, [employees]);
+  }, [allocations, leaves]);
 
   const projectAnalyses = projects.map(p => ({ project: p, analysis: getProjectAnalysis(p) }));
   const overburdenProjects = projectAnalyses.filter(pa => pa.analysis.status === 'overburden');
@@ -232,7 +258,6 @@ const Dashboard = () => {
             <CardHeader
               title="Project Status"
               subtitle="Overview of active sub-projects"
-              action={<MoreVertical className="w-5 h-5" />}
             />
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -285,7 +310,7 @@ const Dashboard = () => {
         <div className="xl:col-span-4 space-y-6">
           {/* Skills Card */}
           <Card>
-            <CardHeader title="Skill Availability" action={<MoreVertical className="w-5 h-5" />} />
+            <CardHeader title="Skill Availability" />
             <CardContent>
               <div className="space-y-4">
                 {skillsSummary.skills && Object.entries(skillsSummary.skills).slice(0, 5).map(([skill, data]) => {
