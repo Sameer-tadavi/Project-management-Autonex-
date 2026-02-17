@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+// Ensure HTTPS for production (non-localhost) URLs to prevent Mixed Content errors
+let apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+if (!apiBaseUrl.includes('localhost') && apiBaseUrl.startsWith('http://')) {
+    apiBaseUrl = apiBaseUrl.replace('http://', 'https://');
+}
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+    baseURL: apiBaseUrl,
     headers: {
         'Content-Type': 'application/json',
     },
