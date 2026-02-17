@@ -364,7 +364,7 @@ const ProjectsPage = () => {
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-medium text-sm rounded-xl shadow-sm hover:bg-slate-50 transition-colors"
           >
             <Settings className="w-4 h-4" />
-            Manage Projects
+            Projects
           </Link>
           <button
             onClick={() => {
@@ -527,8 +527,8 @@ const ProjectsPage = () => {
                         <div className="space-y-1">
                           <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${recommendation === 'Overburdened' ? 'bg-red-50 text-red-700' :
                             recommendation === 'Balanced' ? 'bg-emerald-50 text-emerald-700' :
-                            recommendation === 'Underutilized' ? 'bg-amber-50 text-amber-700' :
-                              'bg-slate-100 text-slate-600'
+                              recommendation === 'Underutilized' ? 'bg-amber-50 text-amber-700' :
+                                'bg-slate-100 text-slate-600'
                             }`}>
                             {recommendation}
                           </span>

@@ -30,3 +30,12 @@ def create_skill_if_not_exists(db: Session, name: str):
     
     skill = SkillCreate(name=name)
     return create_skill(db, skill)
+
+
+def delete_skill(db: Session, skill_id: int):
+    """Delete a skill by ID"""
+    skill = db.query(Skill).filter(Skill.id == skill_id).first()
+    if skill:
+        db.delete(skill)
+        db.commit()
+    return skill

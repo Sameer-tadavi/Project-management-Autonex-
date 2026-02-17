@@ -100,6 +100,8 @@ export const leaveApi = {
 export const skillsApi = {
     getSummary: () => api.get('/skills/summary').then(res => res.data),
     getAll: () => api.get('/skills').then(res => res.data),
+    create: (data) => api.post('/skills', data).then(res => res.data),
+    delete: (id) => api.delete(`/skills/${id}`).then(res => res.data),
 };
 
 // Alias for inconsistency in naming if any

@@ -136,3 +136,12 @@ def create_skill(skill: SkillCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Skill already exists")
     
     return skill_crud.create_skill(db, skill)
+
+
+@router.delete("/{skill_id}")
+def delete_skill(skill_id: int, db: Session = Depends(get_db)):
+    """Delete a skill"""
+    skill = skill_crud.delete_skill(db, skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    return {"message": "Skill deleted"}

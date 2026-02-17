@@ -446,7 +446,7 @@ import { Plus, Edit, Trash2, X, User, ChevronDown, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Custom Multi-Select Dropdown Component
-const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryClient }) => {
+const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryClient, required = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState(defaultValue);
   const [customSkill, setCustomSkill] = useState('');
@@ -522,9 +522,17 @@ const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryC
             selectedSkills.map((skill, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 border border-blue-200"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 border border-blue-200"
               >
                 {skill}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); toggleSkill(skill); }}
+                  className="hover:text-red-600 transition-colors"
+                  title="Remove skill"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </span>
             ))
           ) : (
@@ -544,18 +552,42 @@ const MultiSelectDropdown = ({ name, defaultValue = [], predefinedSkills, queryC
               </div>
             ) : (
               allSkills.map((skill) => (
-                <label
+                <div
                   key={skill}
-                  className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="flex items-center justify-between px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors group"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedSkills.includes(skill)}
-                    onChange={() => toggleSkill(skill)}
-                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-900">{skill}</span>
-                </label>
+                  <label className="flex items-center flex-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedSkills.includes(skill)}
+                      onChange={() => toggleSkill(skill)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-900">{skill}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const skillObj = (queryClient.getQueryData(['skills']) || []).find(s => s.name === skill);
+                        if (skillObj) {
+                          await skillApi.delete(skillObj.id);
+                          queryClient.invalidateQueries(['skills']);
+                        }
+                        setAllSkills(prev => prev.filter(s => s !== skill));
+                        setSelectedSkills(prev => prev.filter(s => s !== skill));
+                        toast.success(`Skill "${skill}" deleted`);
+                      } catch (err) {
+                        toast.error('Failed to delete skill');
+                      }
+                    }}
+                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 p-1 transition-opacity"
+                    title="Delete skill"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -739,6 +771,14 @@ const EmployeesPage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const skillsRaw = formData.get('skills');
+    const skills = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    if (skills.length === 0) {
+      toast.error('Please select at least one skill');
+      return;
+    }
+
     const data = {
       name: formData.get('name'),
       email: formData.get('email'),
@@ -746,7 +786,7 @@ const EmployeesPage = () => {
       designation: formData.get('designation') || 'Annotator',
       working_hours_per_day: parseFloat(formData.get('working_hours_per_day')),
       weekly_availability: parseFloat(formData.get('weekly_availability')),
-      skills: formData.get('skills').split(',').map(s => s.trim()).filter(Boolean),
+      skills,
       // productivity_baseline removed
       status: formData.get('status') || 'active',
     };
