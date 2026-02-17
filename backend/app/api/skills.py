@@ -89,7 +89,7 @@ from app.services import skill as skill_crud
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
 
-@router.get("/", response_model=List[Skill])
+@router.get("", response_model=List[Skill])
 def get_skills(db: Session = Depends(get_db)):
     """Get all skills"""
     return skill_crud.get_all_skills(db)
@@ -127,7 +127,7 @@ def get_skills_summary(db: Session = Depends(get_db)):
     }
 
 
-@router.post("/", response_model=Skill)
+@router.post("", response_model=Skill)
 def create_skill(skill: SkillCreate, db: Session = Depends(get_db)):
     """Create a new skill"""
     # Check if skill already exists
