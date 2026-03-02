@@ -31,7 +31,7 @@ def create_project(
 # ✅ LIST PROJECTS
 @router.get("", response_model=list[ProjectResponse])
 def list_projects(db: Session = Depends(get_db)):
-    return db.query(Project).all()
+    return db.query(Project).order_by(Project.id.asc()).all()
 
 
 # ✅ UPDATE PROJECT
@@ -46,8 +46,17 @@ def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    for key, value in payload.dict(exclude_unset=True).items():
+    update_data = payload.dict(exclude_unset=True)
+    old_status = project.project_status
+    new_status = update_data.get('project_status', old_status)
+
+    for key, value in update_data.items():
         setattr(project, key, value)
+
+    # Auto-release: when project is completed, delete all allocations
+    if new_status == 'completed' and old_status != 'completed':
+        db.query(Allocation).filter(Allocation.sub_project_id == project_id).delete()
+        project.allocated_employees = 0
 
     db.commit()
     db.refresh(project)

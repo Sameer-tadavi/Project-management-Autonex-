@@ -1,16 +1,35 @@
 import { Navigate, useLocation } from 'react-router-dom';
 
-// TODO: Replace with real auth hook
-const useAuth = () => {
-    // Mock authentication for development
-    // In real app, check localStorage token and decode JWT for role
-    const token = localStorage.getItem('token');
-    const role = localStorage.getItem('role');
+/**
+ * Decode a JWT payload without verifying signature (browser-side).
+ * Falls back to localStorage 'role' for backward compat.
+ */
+const parseJwt = (token) => {
+    try {
+        const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        return JSON.parse(atob(base64));
+    } catch {
+        return null;
+    }
+};
 
-    return {
-        isAuthenticated: !!token,
-        role: role, // 'admin' or 'employee'
-    };
+const useAuth = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return { isAuthenticated: false, role: null, user: null };
+
+    const payload = parseJwt(token);
+    if (!payload) return { isAuthenticated: false, role: null, user: null };
+
+    // Check expiry
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('role');
+        localStorage.removeItem('user');
+        return { isAuthenticated: false, role: null, user: null };
+    }
+
+    const role = payload.role || localStorage.getItem('role');
+    return { isAuthenticated: true, role, user: payload };
 };
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -18,19 +37,28 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const location = useLocation();
 
     if (!isAuthenticated) {
-        // Redirect to the appropriate login based on the URL extracted from location
-        // or default to generic login if path is unclear
         const isEmployeeRoute = location.pathname.startsWith('/employee');
-        return <Navigate to={isEmployeeRoute ? "/login/employee" : "/login/admin"} state={{ from: location }} replace />;
+        const isPMRoute = location.pathname.startsWith('/pm');
+        const loginPath = isEmployeeRoute
+            ? '/login/employee'
+            : isPMRoute
+                ? '/login/pm'
+                : '/login/admin';
+        return <Navigate to={loginPath} state={{ from: location }} replace />;
     }
 
     if (allowedRoles && !allowedRoles.includes(role)) {
-        // Role authorized check
-        // If logged in as employee but trying to access admin, 403 or redirect to their dashboard
-        return <Navigate to={role === 'admin' ? "/admin/dashboard" : "/employee/dashboard"} replace />;
+        // Redirect to the correct dashboard for their role
+        const dashboardMap = {
+            admin: '/admin/dashboard',
+            pm: '/pm/dashboard',
+            employee: '/employee/dashboard',
+        };
+        return <Navigate to={dashboardMap[role] || '/login/admin'} replace />;
     }
 
     return children;
 };
 
+export { useAuth };
 export default ProtectedRoute;

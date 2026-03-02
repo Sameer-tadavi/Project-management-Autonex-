@@ -1,5 +1,5 @@
 from app.db.database import Base, engine
-from app.models import project, allocation, leave, employee, parent_project
+from app.models import project, allocation, leave, employee, parent_project, user, sub_project, guideline, side_project
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.projects import router as project_router
@@ -10,6 +10,9 @@ from app.api.skills import router as skills_router
 from app.api.auth import router as auth_router
 from app.api.parent_projects import router as parent_projects_router
 from app.api.recommendations import router as recommendations_router
+from app.api.sub_projects import router as sub_projects_router
+from app.api.guidelines import router as guidelines_router
+from app.api.side_projects_api import router as side_projects_api_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -37,3 +40,6 @@ app.include_router(skills_router)
 app.include_router(auth_router)
 app.include_router(parent_projects_router)
 app.include_router(recommendations_router)
+app.include_router(sub_projects_router)
+app.include_router(guidelines_router)
+app.include_router(side_projects_api_router)

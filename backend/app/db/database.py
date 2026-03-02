@@ -18,15 +18,25 @@ else:
     db_info = DATABASE_URL.split('@')[0] if '@' in DATABASE_URL else DATABASE_URL
     print(f"✅ Using database: {db_info}...")
 
-# Add connect_args for SQLite to avoid threading issues
+# Add connect_args for SQLite or SSL for PostgreSQL
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+elif "neon" in DATABASE_URL:
+    # Neon doesn't accept startup options like statement_timeout; omit them
+    connect_args = {"connect_timeout": 10}
+elif "postgresql" in DATABASE_URL:
+    # For regular Postgres (non-Neon) we can set statement_timeout via startup options
+    connect_args = {"connect_timeout": 10, "options": "-c statement_timeout=30000"}
 
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    connect_args=connect_args
+    pool_size=3,
+    max_overflow=5,
+    pool_recycle=300,
+    pool_timeout=15,
+    connect_args=connect_args,
 )
 
 SessionLocal = sessionmaker(

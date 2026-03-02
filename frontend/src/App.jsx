@@ -7,18 +7,31 @@ import ProtectedRoute from './routes/ProtectedRoute';
 
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
-import AuthLayout from './layouts/AuthLayout';
 import EmployeeLayout from './layouts/EmployeeLayout';
 
 // Lazy Loaded Pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
-const SubProjectsPage = lazy(() => import('./pages/ProjectsPage'));  // Renamed: now Sub-Projects
+const SubProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const AllocationsPage = lazy(() => import('./pages/AllocationsPage'));
 const LeavesPage = lazy(() => import('./pages/LeavesPage'));
-const ProjectsPage = lazy(() => import('./pages/ParentProjectsPage'));  // Renamed: now Main Projects
+const ProjectsPage = lazy(() => import('./pages/ParentProjectsPage'));
 const AdminLogin = lazy(() => import('./pages/auth/AdminLogin'));
 const EmployeeLogin = lazy(() => import('./pages/auth/EmployeeLogin'));
+const PMLogin = lazy(() => import('./pages/auth/PMLogin'));
+
+// Employee & PM Dashboards
+const EmployeeDashboard = lazy(() => import('./pages/employee/EmployeeDashboard'));
+const PMDashboard = lazy(() => import('./pages/pm/PMDashboard'));
+const GuidelinesPage = lazy(() => import('./pages/guidelines/GuidelinesPage'));
+
+// Scoped Pages
+const PMProjectsPage = lazy(() => import('./pages/pm/PMProjectsPage'));
+const PMLeavesPage = lazy(() => import('./pages/pm/PMLeavesPage'));
+const EmployeeProjectsPage = lazy(() => import('./pages/employee/EmployeeProjectsPage'));
+const EmployeeLeavesPage = lazy(() => import('./pages/employee/EmployeeLeavesPage'));
+const EmployeeGuidelinesPage = lazy(() => import('./pages/employee/EmployeeGuidelinesPage'));
+const SideProjectsPage = lazy(() => import('./pages/employee/SideProjectsPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,9 +49,10 @@ function App() {
       <Router>
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-slate-500 font-medium">Loading Application...</div>}>
           <Routes>
-            {/* Public Auth Routes - Each login is completely separate */}
+            {/* Public Auth Routes */}
             <Route path="/login/admin" element={<AdminLogin />} />
             <Route path="/login/employee" element={<EmployeeLogin />} />
+            <Route path="/login/pm" element={<PMLogin />} />
             <Route path="/login" element={<Navigate to="/login/admin" replace />} />
 
             {/* Protected Admin Routes */}
@@ -54,6 +68,7 @@ function App() {
               <Route path="sub-projects" element={<SubProjectsPage />} />
               <Route path="allocations" element={<AllocationsPage />} />
               <Route path="leaves" element={<LeavesPage />} />
+              <Route path="guidelines" element={<GuidelinesPage />} />
             </Route>
 
             {/* Root Redirect */}
@@ -66,7 +81,25 @@ function App() {
               </ProtectedRoute>
             }>
               <Route index element={<Navigate to="/employee/dashboard" replace />} />
-              <Route path="dashboard" element={<div>Employee Dashboard Placeholder</div>} />
+              <Route path="dashboard" element={<EmployeeDashboard />} />
+              <Route path="projects" element={<EmployeeProjectsPage />} />
+              <Route path="leaves" element={<EmployeeLeavesPage />} />
+              <Route path="side-projects" element={<SideProjectsPage />} />
+              <Route path="guidelines" element={<EmployeeGuidelinesPage />} />
+            </Route>
+
+            {/* Protected PM Routes */}
+            <Route path="/pm" element={
+              <ProtectedRoute allowedRoles={['pm']}>
+                <EmployeeLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<Navigate to="/pm/dashboard" replace />} />
+              <Route path="dashboard" element={<PMDashboard />} />
+              <Route path="projects" element={<PMProjectsPage />} />
+              <Route path="leaves" element={<PMLeavesPage />} />
+              <Route path="side-projects" element={<SideProjectsPage />} />
+              <Route path="guidelines" element={<GuidelinesPage />} />
             </Route>
 
             {/* Catch all */}

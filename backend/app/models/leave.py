@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Date
+from sqlalchemy import Column, Integer, String, Date, Text, TIMESTAMP
+from sqlalchemy.sql import func
 from app.db.database import Base
 
 class Leave(Base):
@@ -9,3 +10,9 @@ class Leave(Base):
     leave_type = Column(String)
     start_date = Column(Date)
     end_date = Column(Date)
+    reason = Column(Text, nullable=True)
+    status = Column(String, default="pending")  # pending, approved, rejected
+    approved_by = Column(Integer, nullable=True)  # user_id of approver
+
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())

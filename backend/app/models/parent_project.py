@@ -8,17 +8,17 @@ from app.db.database import Base
 class MainProject(Base):
     """
     Main Project entity for hierarchical project management.
-    Supports long-term initiatives like "Yutori" with multiple sub-projects/batches.
+    Hierarchy: MainProject → SubProject → DailySheet → Allocations
     """
     __tablename__ = "main_projects"
 
     id = Column(Integer, primary_key=True, index=True)
     
     # Core fields
-    name = Column(Text, nullable=False)                     # e.g., "Yutori"
-    program_manager_id = Column(Integer, nullable=True)     # Reference to Employee ID
-    description = Column(Text, nullable=True)               # Scope of work
-    client = Column(Text, nullable=True)                    # Client details for inheritance
+    name = Column(Text, nullable=False)
+    program_manager_id = Column(Integer, nullable=True)
+    description = Column(Text, nullable=True)
+    client = Column(Text, nullable=True)
     
     # Timeline
     global_start_date = Column(Date, nullable=False)
@@ -35,7 +35,7 @@ class MainProject(Base):
         onupdate=func.now()
     )
     
-    # Relationship to sub-projects
+    # Relationship to new SubProject (intermediate level)
     sub_projects = relationship(
         "SubProject",
         back_populates="main_project",

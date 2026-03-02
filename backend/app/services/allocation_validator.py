@@ -169,7 +169,7 @@ def check_double_booking(
     for alloc in existing_allocations:
         allocation_details.append({
             'allocation_id': alloc.id,
-            'project_id': alloc.project_id,
+            'project_id': alloc.sub_project_id,
             'hours': alloc.total_daily_hours or alloc.weekly_hours_allocated or 0,
             'active_start': alloc.active_start_date.isoformat() if alloc.active_start_date else None,
             'active_end': alloc.active_end_date.isoformat() if alloc.active_end_date else None

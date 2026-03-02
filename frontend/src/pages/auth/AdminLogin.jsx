@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { Lock, Mail, ArrowRight, AlertCircle, ShieldCheck } from 'lucide-react';
+import { authApi } from '../../services/api';
 
 const AdminLogin = () => {
     const navigate = useNavigate();
@@ -15,29 +16,15 @@ const AdminLogin = () => {
     const [error, setError] = useState(null);
 
     const loginMutation = useMutation({
-        mutationFn: async (credentials) => {
-            // Mock Auth for Demo
-            return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    if (credentials.email === 'admin@autonex.com' && credentials.password === 'admin123') {
-                        resolve({
-                            token: 'mock-admin-token',
-                            user: { id: 1, name: 'Admin User', email: credentials.email, role: 'admin' }
-                        });
-                    } else {
-                        reject(new Error('Invalid credentials'));
-                    }
-                }, 800);
-            });
-        },
+        mutationFn: (credentials) => authApi.login(credentials),
         onSuccess: (data) => {
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
-            localStorage.setItem('role', 'admin');
+            localStorage.setItem('role', data.user.role);
             navigate(from, { replace: true });
         },
-        onError: () => {
-            setError('Invalid email or password. Please try again.');
+        onError: (err) => {
+            setError(err.response?.data?.detail || 'Invalid email or password. Please try again.');
         }
     });
 
@@ -83,7 +70,10 @@ const AdminLogin = () => {
 
             {/* Right Side - Dark Theme Login */}
             <div className="flex-1 flex flex-col justify-center items-center p-8 bg-slate-950 relative">
-                <div className="absolute top-0 right-0 p-8">
+                <div className="absolute top-0 right-0 p-8 flex gap-4">
+                    <button onClick={() => navigate('/login/pm')} className="text-sm text-slate-400 hover:text-white transition-colors">
+                        PM Portal →
+                    </button>
                     <button onClick={() => navigate('/login/employee')} className="text-sm text-slate-400 hover:text-white transition-colors">
                         Employee Portal →
                     </button>
@@ -141,9 +131,7 @@ const AdminLogin = () => {
                                 {loginMutation.isPending ? (
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                                 ) : (
-                                    <>
-                                        Sign In
-                                    </>
+                                    <>Sign In</>
                                 )}
                             </button>
                         </form>

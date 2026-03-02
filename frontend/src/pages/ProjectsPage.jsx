@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { subProjectApi, parentProjectApi, employeeApi, allocationApi, skillApi } from '../services/api';
+import { subProjectApi, parentProjectApi, employeeApi, allocationApi, skillApi, leaveApi } from '../services/api';
 import { Plus, Edit, Trash2, X, UserCheck, Users, ChevronDown, ArrowRight, Copy, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -204,6 +204,11 @@ const ProjectsPage = () => {
     queryFn: allocationApi.getAll,
   });
 
+  const { data: leaves = [] } = useQuery({
+    queryKey: ['leaves'],
+    queryFn: leaveApi.getAll,
+  });
+
   const createMutation = useMutation({
     mutationFn: subProjectApi.create,
     onSuccess: () => {
@@ -301,30 +306,70 @@ const ProjectsPage = () => {
     return Math.round(project.total_tasks / manpower);
   };
 
+  // Helper: count working days (exclude weekends) between two dates
+  const getWorkingDays = (startStr, endStr) => {
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    let count = 0;
+    const current = new Date(start);
+    while (current <= end) {
+      const day = current.getDay(); // 0=Sun, 6=Sat
+      if (day !== 0 && day !== 6) count++;
+      current.setDate(current.getDate() + 1);
+    }
+    return count || 1; // at least 1 to avoid division by zero
+  };
+
+  // Helper: count leave working days for an employee during a project period
+  const getEmployeeLeaveDays = (employeeId, projectStart, projectEnd) => {
+    const empLeaves = leaves.filter(l => l.employee_id === employeeId);
+    let totalLeaveDays = 0;
+    for (const leave of empLeaves) {
+      if (!leave.start_date || !leave.end_date) continue;
+      const leaveStart = new Date(Math.max(new Date(leave.start_date), new Date(projectStart)));
+      const leaveEnd = new Date(Math.min(new Date(leave.end_date), new Date(projectEnd)));
+      if (leaveStart <= leaveEnd) {
+        totalLeaveDays += getWorkingDays(leaveStart.toISOString().split('T')[0], leaveEnd.toISOString().split('T')[0]);
+      }
+    }
+    return totalLeaveDays;
+  };
+
   const getSystemRecommendation = (project) => {
-    const allocatedPersonnel = getAllocatedManpower(project);
+    const projectAllocations = allocations.filter(a => a.sub_project_id === project.id);
+    const allocatedPersonnel = projectAllocations.length;
     const totalTasks = project.total_tasks || 0;
-    const avgTimePerTask = project.estimated_time_per_task || 0;
+    const avgTimePerTask = project.estimated_time_per_task || 0; // in hours
+    const totalEstimatedHours = totalTasks * avgTimePerTask;
 
     if (allocatedPersonnel === 0) {
-      return 'Overburdened';
+      return { label: 'Overburdened', dailyHours: 0, details: 'No employees allocated' };
     }
 
-    const tasksPerPerson = totalTasks / allocatedPersonnel;
-    const requiredHoursPerPerson = tasksPerPerson * avgTimePerTask;
-    const durationDays = project.project_duration_days || 1;
-    const dailyRequiredHoursPerPerson = requiredHoursPerPerson / durationDays;
+    const workingDays = getWorkingDays(project.start_date, project.end_date);
 
-    // Overburdened: > 8.5h per day
-    // Balanced: 7h - 8.5h per day
-    // Underutilized: < 7h per day
-    if (dailyRequiredHoursPerPerson > 8.5) {
-      return 'Overburdened';
-    } else if (dailyRequiredHoursPerPerson >= 7.0) {
-      return 'Balanced';
+    // Calculate effective capacity: subtract leave days per employee
+    let totalEffectiveEmployeeDays = 0;
+    for (const alloc of projectAllocations) {
+      const leaveDays = getEmployeeLeaveDays(alloc.employee_id, project.start_date, project.end_date);
+      totalEffectiveEmployeeDays += (workingDays - leaveDays);
+    }
+
+    // Per-employee average daily required hours
+    const avgDailyHoursPerEmployee = totalEffectiveEmployeeDays > 0
+      ? totalEstimatedHours / totalEffectiveEmployeeDays
+      : 999;
+
+    let label;
+    if (avgDailyHoursPerEmployee > 8.5) {
+      label = 'Overburdened';
+    } else if (avgDailyHoursPerEmployee >= 7.5) {
+      label = 'Balanced';
     } else {
-      return 'Underutilized';
+      label = 'Underutilized';
     }
+
+    return { label, dailyHours: avgDailyHoursPerEmployee, workingDays, effectiveDays: totalEffectiveEmployeeDays };
   };
 
   const [searchParams] = useSearchParams();
@@ -418,7 +463,8 @@ const ProjectsPage = () => {
                   const allocatedManpower = getAllocatedManpower(project);
                   const remainingManpower = matchingTotal - allocatedManpower;
                   const tasksPerEmp = allocatedManpower > 0 ? Math.round(project.total_tasks / allocatedManpower) : 0;
-                  const recommendation = getSystemRecommendation(project);
+                  const recResult = getSystemRecommendation(project);
+                  const recommendation = recResult.label;
 
                   return (
                     <tr key={project.id} className="hover:bg-slate-50 transition-colors">
@@ -534,7 +580,8 @@ const ProjectsPage = () => {
                           </span>
                           {allocatedManpower > 0 && (
                             <div className="text-xs text-slate-500">
-                              {((project.total_tasks / allocatedManpower) * project.estimated_time_per_task).toFixed(1)}h / 8h per day
+                              {recResult.dailyHours < 999 ? `${recResult.dailyHours.toFixed(1)}h` : '—'}  / 8h per day
+                              {recResult.workingDays && <span className="text-slate-400"> ({recResult.workingDays}wd)</span>}
                             </div>
                           )}
                         </div>

@@ -26,7 +26,7 @@
 cd backend
 rm autonex.db  # Delete old database!
 venv\Scripts\activate
-uvicorn app.main:app --reload
+`uvicorn app.main:app --reload`
 ```
 
 ### Frontend (New Terminal):

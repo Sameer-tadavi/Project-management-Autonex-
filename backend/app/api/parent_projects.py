@@ -120,7 +120,7 @@ def get_parent_project(parent_project_id: int, db: Session = Depends(get_db)):
     # Get sub-projects
     sub_projects = db.query(Project).filter(
         Project.main_project_id == parent_project_id
-    ).order_by(Project.created_at.desc()).all()
+    ).order_by(Project.id.asc()).all()
     
     sub_project_list = [
         SubProjectSummary(

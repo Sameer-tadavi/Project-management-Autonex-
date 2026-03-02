@@ -97,10 +97,12 @@ export const allocationApi = {
 };
 
 export const leaveApi = {
-    getAll: () => api.get('/leaves').then(res => res.data),
+    getAll: (params) => api.get('/leaves', { params }).then(res => res.data),
     create: (data) => api.post('/leaves', data).then(res => res.data),
     update: (id, data) => api.put(`/leaves/${id}`, data).then(res => res.data),
     delete: (id) => api.delete(`/leaves/${id}`).then(res => res.data),
+    approve: (id, approvedBy) => api.patch(`/leaves/${id}/approve`, null, { params: { approved_by: approvedBy } }).then(res => res.data),
+    reject: (id, approvedBy) => api.patch(`/leaves/${id}/reject`, null, { params: { approved_by: approvedBy } }).then(res => res.data),
 };
 
 export const skillsApi = {
@@ -113,5 +115,30 @@ export const skillsApi = {
 // Alias for inconsistency in naming if any
 export const skillApi = skillsApi;
 
-export default api;
+// === Auth API ===
+export const authApi = {
+    signup: (data) => api.post('/auth/signup', data).then(res => res.data),
+    login: (data) => api.post('/auth/login', data).then(res => res.data),
+    logout: () => api.post('/auth/logout').then(res => res.data),
+    me: () => api.get('/auth/me').then(res => res.data),
+    verify: () => api.get('/auth/verify').then(res => res.data),
+};
 
+// === Side Projects API ===
+export const sideProjectApi = {
+    getAll: (params) => api.get('/side-projects', { params }).then(res => res.data),
+    create: (data) => api.post('/side-projects', data).then(res => res.data),
+    update: (id, data) => api.put(`/side-projects/${id}`, data).then(res => res.data),
+    delete: (id) => api.delete(`/side-projects/${id}`).then(res => res.data),
+};
+
+// === Guidelines API ===
+export const guidelineApi = {
+    getAll: (params) => api.get('/guidelines', { params }).then(res => res.data),
+    getOne: (id) => api.get(`/guidelines/${id}`).then(res => res.data),
+    create: (data) => api.post('/guidelines', data).then(res => res.data),
+    update: (id, data) => api.put(`/guidelines/${id}`, data).then(res => res.data),
+    delete: (id) => api.delete(`/guidelines/${id}`).then(res => res.data),
+};
+
+export default api;

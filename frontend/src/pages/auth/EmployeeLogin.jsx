@@ -1,13 +1,26 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Mail, ArrowRight, Clock, CalendarCheck } from 'lucide-react';
+import { User, Lock, Mail, ArrowRight, Clock, CalendarCheck, UserPlus, ChevronDown } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { authApi, skillsApi } from '../../services/api';
+import { useQuery } from '@tanstack/react-query';
 
 const EmployeeLogin = () => {
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [isSignup, setIsSignup] = useState(false);
+    const [formData, setFormData] = useState({
+        email: '', password: '', confirmPassword: '', name: '', skills: []
+    });
     const [errors, setErrors] = useState({});
-    const [isLoading, setIsLoading] = useState(false);
     const [serverError, setServerError] = useState('');
+    const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+
+    // Fetch available skills for signup
+    const { data: skillsList } = useQuery({
+        queryKey: ['skills'],
+        queryFn: skillsApi.getAll,
+        enabled: isSignup,
+    });
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -16,38 +29,67 @@ const EmployeeLogin = () => {
         if (serverError) setServerError('');
     };
 
+    const toggleSkill = (skillName) => {
+        setFormData(prev => ({
+            ...prev,
+            skills: prev.skills.includes(skillName)
+                ? prev.skills.filter(s => s !== skillName)
+                : [...prev.skills, skillName],
+        }));
+    };
+
     const validate = () => {
         const newErrors = {};
+        if (isSignup && !formData.name) newErrors.name = 'Full Name is required';
         if (!formData.email) newErrors.email = 'Email is required';
         else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
         if (!formData.password) newErrors.password = 'Password is required';
         else if (formData.password.length < 6) newErrors.password = 'Minimum 6 characters';
+        if (isSignup && formData.password !== formData.confirmPassword)
+            newErrors.confirmPassword = 'Passwords do not match';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
+    const loginMutation = useMutation({
+        mutationFn: (creds) => authApi.login(creds),
+        onSuccess: (data) => {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            localStorage.setItem('role', data.user.role);
+            navigate('/employee/dashboard');
+        },
+        onError: (err) => setServerError(err.response?.data?.detail || 'Invalid credentials.'),
+    });
+
+    const signupMutation = useMutation({
+        mutationFn: (body) => authApi.signup(body),
+        onSuccess: (data) => {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            localStorage.setItem('role', data.user.role);
+            navigate('/employee/dashboard');
+        },
+        onError: (err) => setServerError(err.response?.data?.detail || 'Signup failed.'),
+    });
+
+    const isLoading = loginMutation.isPending || signupMutation.isPending;
+
+    const handleSubmit = (e) => {
         e.preventDefault();
         if (!validate()) return;
-
-        setIsLoading(true);
         setServerError('');
 
-        try {
-            // TODO: Replace with actual API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            const mockToken = `employee-jwt-${Date.now()}`;
-            localStorage.setItem('token', mockToken);
-            localStorage.setItem('role', 'employee');
-            localStorage.setItem('user', JSON.stringify({ email: formData.email, role: 'employee' }));
-
-            navigate('/employee/dashboard');
-        } catch (err) {
-            console.error(err);
-            setServerError('Invalid credentials. Please try again.');
-        } finally {
-            setIsLoading(false);
+        if (isSignup) {
+            signupMutation.mutate({
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                skills: formData.skills,
+                role: 'employee',
+            });
+        } else {
+            loginMutation.mutate({ email: formData.email, password: formData.password });
         }
     };
 
@@ -105,7 +147,7 @@ const EmployeeLogin = () => {
                 </div>
             </div>
 
-            {/* Right Panel - Login Form */}
+            {/* Right Panel - Login / Signup Form */}
             <div className="flex-1 flex flex-col justify-center items-center p-8 bg-slate-50">
                 <div className="w-full max-w-md bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100">
                     {/* Mobile Logo */}
@@ -118,17 +160,54 @@ const EmployeeLogin = () => {
                         </div>
                     </div>
 
+                    {/* Toggle Login / Signup */}
+                    <div className="flex mb-6 bg-slate-100 rounded-xl p-1">
+                        <button
+                            onClick={() => { setIsSignup(false); setErrors({}); setServerError(''); }}
+                            className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${!isSignup ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Sign In
+                        </button>
+                        <button
+                            onClick={() => { setIsSignup(true); setErrors({}); setServerError(''); }}
+                            className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${isSignup ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Sign Up
+                        </button>
+                    </div>
+
                     {/* Header */}
-                    <div className="mb-8 text-center lg:text-left">
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back! 👋</h2>
-                        <p className="text-slate-500 mt-2">Sign in to access your workspace</p>
+                    <div className="mb-6 text-center lg:text-left">
+                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                            {isSignup ? 'Create Account' : 'Welcome back! 👋'}
+                        </h2>
+                        <p className="text-slate-500 mt-1 text-sm">
+                            {isSignup ? 'Register to get started' : 'Sign in to access your workspace'}
+                        </p>
                     </div>
 
                     {/* Form */}
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         {serverError && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 font-medium text-center">
                                 {serverError}
+                            </div>
+                        )}
+
+                        {/* Name (signup only) */}
+                        {isSignup && (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
+                                <div className="relative">
+                                    <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                    <input
+                                        type="text" name="name" value={formData.name} onChange={handleChange}
+                                        placeholder="e.g. John Doe"
+                                        className={`w-full pl-11 pr-4 py-3 border rounded-xl text-sm transition-all outline-none ${errors.name ? 'border-red-300' : 'border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'}`}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                                {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name}</p>}
                             </div>
                         )}
 
@@ -138,15 +217,9 @@ const EmployeeLogin = () => {
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                 <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleChange}
+                                    type="email" name="email" value={formData.email} onChange={handleChange}
                                     placeholder="you@company.com"
-                                    className={`w-full pl-11 pr-4 py-3 border rounded-xl text-sm transition-all outline-none ${errors.email
-                                            ? 'border-red-300 focus:ring-2 focus:ring-red-100'
-                                            : 'border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
-                                        }`}
+                                    className={`w-full pl-11 pr-4 py-3 border rounded-xl text-sm transition-all outline-none ${errors.email ? 'border-red-300' : 'border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'}`}
                                     disabled={isLoading}
                                 />
                             </div>
@@ -155,42 +228,71 @@ const EmployeeLogin = () => {
 
                         {/* Password */}
                         <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                                <label className="block text-sm font-medium text-slate-700">Password</label>
-                                <a href="#" className="text-xs text-emerald-600 hover:underline font-medium">Need help?</a>
-                            </div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                 <input
-                                    type="password"
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleChange}
+                                    type="password" name="password" value={formData.password} onChange={handleChange}
                                     placeholder="••••••••"
-                                    className={`w-full pl-11 pr-4 py-3 border rounded-xl text-sm transition-all outline-none ${errors.password
-                                            ? 'border-red-300 focus:ring-2 focus:ring-red-100'
-                                            : 'border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
-                                        }`}
+                                    className={`w-full pl-11 pr-4 py-3 border rounded-xl text-sm transition-all outline-none ${errors.password ? 'border-red-300' : 'border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'}`}
                                     disabled={isLoading}
                                 />
                             </div>
                             {errors.password && <p className="text-sm text-red-500 mt-1">{errors.password}</p>}
                         </div>
 
-                        {/* Remember Me */}
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="remember"
-                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                            <label htmlFor="remember" className="text-sm text-slate-600">Keep me signed in</label>
-                        </div>
+                        {/* Confirm Password (signup only) */}
+                        {isSignup && (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                    <input
+                                        type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange}
+                                        placeholder="••••••••"
+                                        className={`w-full pl-11 pr-4 py-3 border rounded-xl text-sm transition-all outline-none ${errors.confirmPassword ? 'border-red-300' : 'border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'}`}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                                {errors.confirmPassword && <p className="text-sm text-red-500 mt-1">{errors.confirmPassword}</p>}
+                            </div>
+                        )}
+
+                        {/* Skills Dropdown (signup only) */}
+                        {isSignup && (
+                            <div className="relative">
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Skills</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setSkillDropdownOpen(!skillDropdownOpen)}
+                                    className="w-full flex items-center justify-between px-4 py-3 border border-slate-200 rounded-xl text-sm text-left focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                                >
+                                    <span className={formData.skills.length ? 'text-slate-900' : 'text-slate-400'}>
+                                        {formData.skills.length ? formData.skills.join(', ') : 'Select skills...'}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                                </button>
+                                {skillDropdownOpen && (
+                                    <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                        {(skillsList || []).map(s => (
+                                            <label key={s.id} className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.skills.includes(s.name)}
+                                                    onChange={() => toggleSkill(s.name)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                                                />
+                                                {s.name}
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Submit */}
                         <button
-                            type="submit"
-                            disabled={isLoading}
+                            type="submit" disabled={isLoading}
                             className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
                         >
                             {isLoading ? (
@@ -199,11 +301,11 @@ const EmployeeLogin = () => {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                     </svg>
-                                    Signing in...
+                                    {isSignup ? 'Creating Account...' : 'Signing in...'}
                                 </span>
                             ) : (
                                 <>
-                                    Access Workspace
+                                    {isSignup ? 'Create Account' : 'Access Workspace'}
                                     <ArrowRight className="w-4 h-4" />
                                 </>
                             )}

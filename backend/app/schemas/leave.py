@@ -7,6 +7,7 @@ class LeaveBase(BaseModel):
     start_date: date
     end_date: date
     leave_type: str = Field(..., pattern="^(casual|sick|vacation|personal|emergency)$")
+    reason: Optional[str] = None
 
     @validator("end_date")
     def end_after_start(cls, v, values):
@@ -23,5 +24,7 @@ class LeaveUpdate(LeaveBase):
 
 class Leave(LeaveBase):
     leave_id: int
+    status: Optional[str] = "pending"
+    approved_by: Optional[int] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

@@ -1,5 +1,8 @@
-# Legacy commented code removed for clarity
-
+"""
+DailySheet model (formerly SubProject).
+Represents daily sheets / batches with tasks, time targets, and employee assignments.
+Hierarchy: MainProject → SubProject → DailySheet → Allocations
+"""
 from sqlalchemy import Column, Integer, String, Date, Float, Text, TIMESTAMP, JSON, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -7,25 +10,23 @@ from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 
-class SubProject(Base):
-    __tablename__ = "sub_projects"
+class DailySheet(Base):
+    __tablename__ = "daily_sheets"
 
     id = Column(Integer, primary_key=True, index=True)
     
-    # === Hierarchy Fields ===
+    # === Hierarchy ===
+    sub_project_id = Column(Integer, ForeignKey("sub_projects.id"), nullable=True)
     main_project_id = Column(Integer, ForeignKey("main_projects.id"), nullable=True)
-    batch_name = Column(Text, nullable=True)              # e.g., "Batch 45"
+    batch_name = Column(Text, nullable=True)
     is_sub_project = Column(Boolean, default=False)
-    previous_sub_project_id = Column(Integer, nullable=True)  # For cloning reference
+    previous_daily_sheet_id = Column(Integer, nullable=True)
     
-    # Relationship to main project
-    main_project = relationship(
-        "MainProject",
-        back_populates="sub_projects",
-        foreign_keys=[main_project_id]
-    )
-    # === END Hierarchy Fields ===
+    # Relationships
+    sub_project = relationship("SubProject", back_populates="daily_sheets", foreign_keys=[sub_project_id])
+    main_project = relationship("MainProject", foreign_keys=[main_project_id])
 
+    # === Core Fields ===
     name = Column(Text, nullable=False)
     client = Column(Text, nullable=False)
     project_type = Column(Text, nullable=False)
@@ -33,10 +34,7 @@ class SubProject(Base):
     total_tasks = Column(Integer, nullable=False)
     estimated_time_per_task = Column(Float, nullable=False)
 
-    # Store as JSON array: ["Python", "Data Analysis", ...]
     required_expertise = Column(JSON, nullable=True)
-    
-    # Store assigned employee IDs as JSON array: [1, 3, 5, ...]
     assigned_employee_ids = Column(JSON, nullable=True, default=[])
 
     start_date = Column(Date, nullable=False)
@@ -46,8 +44,8 @@ class SubProject(Base):
     project_duration_weeks = Column(Integer, nullable=True)
     project_duration_days = Column(Integer, nullable=True)
 
-    required_manpower = Column(Integer, default=0)  # Number of employees required
-    allocated_employees = Column(Integer, default=0)  # Number actually allocated
+    required_manpower = Column(Integer, default=0)
+    allocated_employees = Column(Integer, default=0)
 
     priority = Column(Text, default="medium")
     project_status = Column(Text, default="active")
@@ -59,5 +57,6 @@ class SubProject(Base):
         onupdate=func.now()
     )
 
-# Alias for backward compatibility
-Project = SubProject
+# Backward compatibility aliases
+SubProject = DailySheet
+Project = DailySheet
