@@ -24,6 +24,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
         "https://project-management-autonex-et9x.vercel.app",
         "https://project-management-autonex.vercel.app",
     ],  # Frontend URLs

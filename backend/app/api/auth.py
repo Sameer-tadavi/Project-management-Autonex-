@@ -58,8 +58,11 @@ class LoginResponse(BaseModel):
 def signup(body: SignupRequest, db: Session = Depends(get_db)):
     """Register a new user. Defaults to 'employee' role."""
 
+    # Normalize email to lowercase for case-insensitive matching
+    normalized_email = body.email.lower().strip()
+
     # Check duplicate email
-    existing = db.query(User).filter(User.email == body.email).first()
+    existing = db.query(User).filter(User.email == normalized_email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -69,7 +72,7 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
     # Create matching Employee record so they appear in the team
     employee = Employee(
         name=body.name,
-        email=body.email,
+        email=normalized_email,
         employee_type="Full-Time",
         designation="Program Manager" if role == "pm" else "Annotator",
         skills=body.skills or [],
@@ -80,7 +83,7 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
 
     user = User(
         name=body.name,
-        email=body.email,
+        email=normalized_email,
         password_hash=hash_password(body.password),
         role=role,
         employee_id=employee.id,
@@ -106,7 +109,10 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
 def login(body: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate with email + password, returns JWT."""
 
-    user = db.query(User).filter(User.email == body.email).first()
+    # Normalize email to lowercase for case-insensitive matching
+    normalized_email = body.email.lower().strip()
+
+    user = db.query(User).filter(User.email == normalized_email).first()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
